@@ -1,0 +1,150 @@
+<html>
+
+	<head>
+		<title>---> scrum board</title>
+
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		
+		<script src="/js/jquery-1.4.2.min.js"></script>
+		<script src="/js/jquery.event.drag-2.0.min.js"></script>
+		<script src="/js/jquery.event.drop-2.0.min.js"></script>
+		<script src="/js/jquery.contextMenu.js"></script>
+
+		<style type="text/css">
+			body {font-family: Verdana; background: #F5F5DC;}
+			.card {position: absolute; width: 300px; background-color: #EEE; border: 1px solid #89B; padding-bottom: 10px; margin-bottom: 20px; margin-left: 5px; margin-top: 10px; font-size: 13px; box-shadow: 1px 1px 5px black;}
+			.title {background-color: #BCE; font-weight: bold; padding-top: 10px; padding-bottom: 10px; padding-left: 10px; cursor: move;}
+			.description {padding-top: 10px; padding-bottom: 10px; padding-left: 10px;}
+			.priority {display: inline; padding-left: 10px; width: 50px; text-align: center;}
+			.person {display: inline; padding-left: 30px; font-style: italic; text-align: center;}
+			.points {display: inline; padding-left: 30px; text-align: center;}
+
+			.required {color: green; font-weight: bold;}
+			.nicetohave {color: green; font-weight: bold; font-size: 10px; color: purple;}
+
+			.status {z-index: 100; position: absolute;}
+			.status td {font-size: 20px; font-weight: bold; text-align: center; background-color: #eee;}
+			.notstarted {}
+			.wip {}
+			.qa {}
+			.done {}
+
+			#createArea {background-color: #F5F5DC; z-index: 601; width: 70%; height: 70%; position: absolute; top: 15%;	left: 15%; display: none;}
+			#createArea h1 {size: 14px; font-weight: bold}
+			#createArea form {padding-left: 50px; padding-top: 15px;}
+			#mask {background-color: #000; opacity: 0.7; z-index: 600; width: 100%; height: 100%; position: absolute; top: 0px;	left: 0px; display: none;}
+
+			/* menu */
+			.contextMenu { position: absolute; width: 140px; z-index: 500; border: solid 1px #CCC; background: #EEE; padding: 0px; margin: 0px; display: none;}
+			.contextMenu LI { list-style: none; padding: 0px; margin: 0px; cursor: hand;}
+			.contextMenu A { text-decoration: none; display: navy; line-height: 20px; height: 20px; background-position: 6px center; background-repeat: no-repeat; outline: none; padding: 1px 5px; padding-left: 28px;}
+			.contextMenu LI.hover A { color: #FFF; background-color: #3399FF;}
+			.contextMenu LI.disabled A { color: #AAA; cursor: default;}
+			.contextMenu LI.hover.disabled A { background-color: transparent;}
+			.contextMenu LI.separator { border-top: solid 1px #CCC;}
+
+		</style>
+
+		<script>
+
+			var cardId = 0;
+			function addCardBinds()
+			{
+				$('.card').drag(function( ev, dd ){
+					var card = $(this);
+					var position = {
+						top: Math.round( dd.offsetY / 10 ) * 10,
+						left: Math.round( dd.offsetX / 10 ) * 10
+					};
+					var top = card.css('top').replace('px', '');
+					var left = card.css('left').replace('px', '');
+					card.css(position);
+					if(Math.abs(top - position.top) >= 10 || Math.abs(left - position.left) >= 10)
+						socket.send('{"event": "move", "id":"' + this.id + '", "left":' + position.left + ', "top":' + position.top + '}');
+				});
+			}
+
+			var socket;
+			
+			function startWebSocket()
+			{
+				socket = window.MozWebSocket ? new MozWebSocket("ws://localhost:8080/ws") : new WebSocket("ws://localhost:8080/ws");
+				socket.onmessage = function(event)
+				{ 
+					var msg = $.parseJSON(event.data);
+					if(msg.event == "move")
+						$('#' + msg.id).css({top: msg.top, left: msg.left});
+					else if(msg.event == "create")
+					{
+						cardId = msg.id;
+						create(msg.id, msg.title, msg.description, msg.priority, msg.points, msg.owner);
+					}
+				};
+			}
+
+			function create(id, title, description, priority, points, owner)
+			{
+				var content = '<div id="card' + id +'" class="card">';
+				content += '<div class="title">' + title + '</div>';
+				content += '<div class="description">' + description + '</div>';
+				content += '<div class="priority ' + priority.replace(' ', '').replace(' ', '') + '">' + priority + '</div>';
+				content += '<div class="points"><b>' + points +'</b> points</div>';
+				content += '<div class="person">' + owner + '</div>';
+				content += '</div>'
+				$('body').append(content);
+				addCardBinds();
+			}
+
+			function createCard()
+			{
+				var id = ++cardId;
+				var title = $('#card-title').val();
+				var description = $('#card-description').val();
+				var priority = $('#card-priority').val();
+				var points = $('#card-points').val();
+				var owner = $('#card-owner').val();
+				$('#mask').hide();
+				$('#createArea').hide();
+				create(id, title, description, priority, points, owner);
+				socket.send('{"event": "create", "id":"' + id + '", "title": "' +title + '", "description": "' + description + '", "priority": "' + priority + '", "points": '+ points + ', "owner": "'+ owner + '"}');
+			}
+
+			function createCardArea()
+			{
+				$('#mask').show();
+				$('#createArea').show();
+			}
+
+			addCardBinds();
+			startWebSocket();
+			$(window).contextMenu({menu: 'actions'}, function(action, el, pos) { replace(action); });
+
+		</script>
+
+	</head>
+	<body>
+
+		<table id="status" class="status" width="100%"><tr><td width="25%">In Queue</td><td width="25%">WIP</td><td width="25%">QA</td><td width="25%">Done</td></tr></table>
+
+		<div id="mask"></div>
+		<div id="createArea">
+			<form onsubmit="createCard(); return false;">
+				<table>
+				<tr><td><b>title</b> </td><td> <input type="text" id="card-title" /> </td></tr>
+				<tr><td><b>description</b> </td><td> <input type="text" id="card-description" /> </td></tr>
+				<tr><td><b>priority</b> </td><td> <input type="text" id="card-priority" /> </td></tr>
+				<tr><td><b>points</b> </td><td> <input type="text" id="card-points" /> </td></tr>
+				<tr><td><b>owner</b> </td><td> <input type="text" id="card-owner" /> </td></tr>
+				</table>
+				<input type="submit" value="Create!" />
+			</form>
+		</div>
+
+		<ul id="actions" class="contextMenu">
+			<li onclick="createCardArea();">Create</li>
+		</ul>
+
+	</body>
+
+
+</html>
