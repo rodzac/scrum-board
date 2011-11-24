@@ -87,7 +87,7 @@
 				var content = '<div id="card' + id +'" class="card">';
 				content += '<div class="title">' + title + '</div>';
 				content += '<div class="description">' + description + '</div>';
-				content += '<div class="priority ' + priority.replace(' ', '').replace(' ', '') + '">' + priority + '</div>';
+				content += '<div class="priority ' + priority.replace(/ /g, '') + '">' + priority + '</div>';
 				content += '<div class="points"><b>' + points +'</b> points</div>';
 				content += '<div class="person">' + owner + '</div>';
 				content += '</div>'
